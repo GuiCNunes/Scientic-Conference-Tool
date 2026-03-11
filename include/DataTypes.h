@@ -6,32 +6,34 @@
 using namespace std;
 
 struct Submission {
-    int id;
+    int id = -1;
     string title;
     string authors;
     string email;
-    int primaryTopic;
-    int secondaryTopic;
+    int primaryTopic = -1;
+    int secondaryTopic = -1;
 };
 
 struct Reviewer {
-    int id;
+    int id = -1;
     string name;
     string email;
-    int primaryExpertise;
-    int secondaryExpertise;
+    int primaryExpertise = -1;
+    int secondaryExpertise = -1;
 };
 
-struct ConfigParams {
-    int minReviewsPerSubmission;
-    int maxReviewsPerReviewer;
-    int generateAssignments;
-    int riskAnalysis;
+struct Parameters {
+    int minReviewsPerSubmission = 1;
+    int maxReviewsPerReviewer = 1;
+    int primaryReviewerExpertise = 1;
+    int secondaryReviewerExpertise = 0;
+    int primarySubmissionDomain = 1;
+    int secondarySubmissionDomain = 0;
 };
 
 struct Control {
-    int generateAssignments;
-    int riskAnalysis;
+    int generateAssignments = 1;
+    int riskAnalysis = 0;
     string outputFilename = "output.csv";
 };
 
