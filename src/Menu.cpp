@@ -35,7 +35,7 @@ void Menu::run() {
 // ─────────────────────────────────────────────
 
 void Menu::printHeader() {
-    std::cout << "\033[2J\033[H"; // clear screen
+    std::cout << "\033[2J\033[H";
     std::cout << "╔══════════════════════════════════════════╗\n";
     std::cout << "║   Conference Review Assignment Tool      ║\n";
     if (!loadedFile.empty()) {
@@ -82,7 +82,7 @@ void Menu::waitEnter() {
 }
 
 // ─────────────────────────────────────────────
-//  Screen stubs — replace with real logic later
+//  Screens
 // ─────────────────────────────────────────────
 
 void Menu::handleLoadFile() {
@@ -91,22 +91,60 @@ void Menu::handleLoadFile() {
     std::string path;
     std::getline(std::cin, path);
 
-    // TODO: call parser.load(path)
-    showSuccess("File loaded: " + path);
+    if (path.size() < 4 || path.substr(path.size() - 4) != ".csv") {
+        showError("File must have a .csv extension.");
+        return;
+    }
+
+    Parser parser;
+    ParseResult result = parser.parse(path);
+
+    if (!result.success) {
+        showError("Failed to parse file. Check format and try again.");
+        return;
+    }
+
+    data       = result;
     dataLoaded = true;
     loadedFile = path;
+
+    showSuccess("Loaded " + std::to_string(data.submissions.size()) +
+                " submissions and " + std::to_string(data.reviewers.size()) + " reviewers.");
     waitEnter();
 }
 
 void Menu::handleShowData() {
     if (!dataLoaded) { showError("No data loaded. Please load a file first."); return; }
+
     printHeader();
-    std::cout << "  === Submissions ===\n";
-    std::cout << "  (none yet)\n";
-    std::cout << "\n  === Reviewers ===\n";
-    std::cout << "  (none yet)\n";
+
+    std::cout << "  === Submissions (" << data.submissions.size() << ") ===\n";
+    for (const auto& s : data.submissions) {
+        std::cout << "  [" << s.id << "] " << s.title
+                  << " | Topic: " << s.primaryTopic;
+        if (s.secondaryTopic != -1)
+            std::cout << "/" << s.secondaryTopic;
+        std::cout << "\n";
+    }
+
+    std::cout << "\n  === Reviewers (" << data.reviewers.size() << ") ===\n";
+    for (const auto& r : data.reviewers) {
+        std::cout << "  [" << r.id << "] " << r.name
+                  << " | Expertise: " << r.primaryExpertise;
+        if (r.secondaryExpertise != -1)
+            std::cout << "/" << r.secondaryExpertise;
+        std::cout << "\n";
+    }
+
     std::cout << "\n  === Parameters ===\n";
-    std::cout << "  (none yet)\n";
+    std::cout << "  MinReviewsPerSubmission : " << data.params.minReviewsPerSubmission << "\n";
+    std::cout << "  MaxReviewsPerReviewer   : " << data.params.maxReviewsPerReviewer   << "\n";
+
+    std::cout << "\n  === Control ===\n";
+    std::cout << "  GenerateAssignments : " << data.ctrl.generateAssignments << "\n";
+    std::cout << "  RiskAnalysis        : " << data.ctrl.riskAnalysis        << "\n";
+    std::cout << "  OutputFileName      : " << data.ctrl.outputFilename      << "\n";
+
     waitEnter();
 }
 
@@ -114,7 +152,7 @@ void Menu::handleGenerateAssignments() {
     if (!dataLoaded) { showError("No data loaded. Please load a file first."); return; }
     printHeader();
     std::cout << "  Building flow network...\n";
-    // TODO: call flowNetwork.build() and MaxFlow::run()
+    // TODO: wire FlowNetwork + MaxFlow
     std::cout << "  Max flow value: (not implemented)\n";
     waitEnter();
 }
@@ -122,8 +160,8 @@ void Menu::handleGenerateAssignments() {
 void Menu::handleRiskAnalysis() {
     if (!dataLoaded) { showError("No data loaded. Please load a file first."); return; }
     printHeader();
-    std::cout << "  Running risk analysis...\n";
-    // TODO: call RiskAnalysis::run()
+    std::cout << "  Running risk analysis (K=" << data.ctrl.riskAnalysis << ")...\n";
+    // TODO: wire RiskAnalysis
     std::cout << "  Result: (not implemented)\n";
     waitEnter();
 }

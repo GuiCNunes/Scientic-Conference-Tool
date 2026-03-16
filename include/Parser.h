@@ -5,17 +5,15 @@
 #include <vector>
 #include "DataTypes.h"
 
-using namespace std;
-
 /**
  * @brief Estrutura que encapsula apenas os dados lidos do ficheiro.
  */
 struct ParseResult {
-    vector<Submission> submissions;
-    vector<Reviewer>   reviewers;
-    Parameters         params;
-    Control            ctrl;
-    bool               success = true;
+    std::vector<Submission> submissions;
+    std::vector<Reviewer>   reviewers;
+    Parameters              params;
+    Control                 ctrl;
+    bool                    success = true;
 };
 
 class Parser {
@@ -23,17 +21,17 @@ public:
     /**
      * @brief Lê o ficheiro e devolve a estrutura populada.
      */
-    ParseResult parse(const string& filename) const;
+    ParseResult parse(const std::string& filename) const;
 
 private:
-    void parseSubmissionLine(const vector<string>& fields, ParseResult& result) const;
-    void parseReviewerLine  (const vector<string>& fields, ParseResult& result) const;
-    void parseParameterLine (const vector<string>& fields, ParseResult& result) const;
-    void parseControlLine   (const vector<string>& fields, ParseResult& result) const;
+    void parseSubmissionLine(const std::vector<std::string>& fields, ParseResult& result) const;
+    void parseReviewerLine  (const std::vector<std::string>& fields, ParseResult& result) const;
+    void parseParameterLine (const std::vector<std::string>& fields, ParseResult& result) const;
+    void parseControlLine   (const std::vector<std::string>& fields, ParseResult& result) const;
 
-    vector<string> splitCSV(const string& line) const;
-    string trim(const string& s) const;
-    int toInt(const string& s) const;
+    std::vector<std::string> splitCSV(const std::string& line) const;
+    std::string trim(const std::string& s) const;
+    int toInt(const std::string& s) const;
 };
 
 #endif // PARSER_H
