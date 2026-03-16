@@ -6,8 +6,7 @@
 using namespace std;
 
 struct Submission {
-    int id = -1;
-    string title;
+    int id = -1; string title;
     string authors;
     string email;
     int primaryTopic = -1;

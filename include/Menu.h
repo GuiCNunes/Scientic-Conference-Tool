@@ -2,11 +2,10 @@
 #define SCIENTIFIC_CONFERENCE_ORGANIZATION_TOOL_P1_MENU_H
 
 #include <string>
+#include "Parser.h"
 
 /**
  * @brief Handles the interactive CLI menu and batch mode execution.
- *
- * Visual layer only — logic is injected later via handler methods.
  */
 class Menu {
 public:
@@ -16,6 +15,7 @@ public:
 private:
     bool dataLoaded;
     std::string loadedFile;
+    ParseResult data;   // populated by handleLoadFile
 
     // --- Visual helpers ---
     void printHeader();
@@ -24,7 +24,7 @@ private:
     void showSuccess(const std::string& msg);
     void waitEnter();
 
-    // --- Screen stubs (to be implemented with real logic later) ---
+    // --- Screens ---
     void handleLoadFile();
     void handleShowData();
     void handleGenerateAssignments();
