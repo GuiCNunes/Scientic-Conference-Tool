@@ -7,7 +7,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -g")
 
 file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
         "src/*.cpp"
-        "data_structures/*.cpp"
+        "include/*.cpp"
 )
 
 add_executable(ConferenceTool ${SOURCES})

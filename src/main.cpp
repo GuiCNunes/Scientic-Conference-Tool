@@ -1,66 +1,105 @@
-//
-// Created by user on 16-03-2026.
-//
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <algorithm>
+#include <unordered_map>
+#include "../include/Menu.h"
 #include "../include/Parser.h"
+#include "../include/FlowNetwork.h"
+#include "../include/MaxFlow.h"   // edmondsKarp() — função template, está no .h
 
-using namespace std;
+/**
+ * @brief Ponto de entrada do programa.
+ *
+ * Modos de execução:
+ *   Interativo:  ./myProg
+ *   Batch:       ./myProg -b input.csv
+ *
+ * Mensagens de erro/info vão para stderr (conforme o enunciado).
+ */
+int main(int argc, char* argv[]) {
 
-// Converte AssignmentMode para string legível
-static string assignmentModeToString(AssignmentMode mode) {
-    switch (mode) {
-        case AssignmentMode::REGULAR:  return "0 (SILENT)";
-        case AssignmentMode::PRIMARY: return "1 (PRIMARY)";
-        case AssignmentMode::MIXED:   return "2 (MIXED)";
-        case AssignmentMode::FULL:    return "3 (FULL)";
-        default:                      return "desconhecido";
+    // ── Modo batch ───────────────────────────────────────────────
+    if (argc >= 3 && std::string(argv[1]) == "-b") {
+        const std::string inputFile = argv[2];
+
+        Parser parser;
+        ParseResult data = parser.parse(inputFile);
+
+        if (!data.success) {
+            std::cerr << "[ERRO] Falha ao processar '" << inputFile << "'\n";
+            return 1;
+        }
+
+        std::cerr << "[INFO] " << data.submissions.size()
+                  << " submissoes, " << data.reviewers.size()
+                  << " revisores carregados.\n";
+
+        // Construir rede de fluxo
+        FlowNetwork network(data);
+
+        // Correr Edmonds-Karp — identificamos os nós pelo NodeInfo diretamente
+        const NodeInfo source = {NodeType::SOURCE, 0};
+        const NodeInfo sink   = {NodeType::SINK,   0};
+        edmondsKarp(&network.getGraph(), source, sink);
+
+        // Extrair resultado
+        AssignmentResult result = network.extractResult(data);
+
+        std::cerr << "[INFO] Fluxo obtido: " << result.totalFlow
+                  << " | Necessario: "       << result.totalRequired
+                  << " | " << (result.isComplete() ? "COMPLETO" : "INCOMPLETO") << "\n";
+
+        // Escrever output (a não ser que SILENT)
+        if (data.ctrl.generateAssignments != AssignmentMode::SILENT) {
+            std::ofstream out(data.ctrl.outputFilename);
+            if (!out.is_open()) {
+                std::cerr << "[ERRO] Nao foi possivel escrever em '"
+                          << data.ctrl.outputFilename << "'\n";
+                return 1;
+            }
+
+            if (result.isComplete()) {
+                out << "#SubmissionId,ReviewerId,Match\n";
+                for (const auto& a : result.assignments)
+                    out << a.submissionId << ", " << a.reviewerId
+                        << ", " << a.matchedTopic << "\n";
+
+                // Vista por reviewer (inverso)
+                std::unordered_map<int, std::vector<std::pair<int,int>>> byRev;
+                for (const auto& a : result.assignments)
+                    byRev[a.reviewerId].emplace_back(a.submissionId, a.matchedTopic);
+
+                out << "#ReviewerId,SubmissionId,Match\n";
+                std::vector<int> rids;
+                for (const auto& [rid, _] : byRev) rids.push_back(rid);
+                std::sort(rids.begin(), rids.end());
+                for (int rid : rids) {
+                    auto& entries = byRev[rid];
+                    std::sort(entries.begin(), entries.end());
+                    for (const auto& [sid, t] : entries)
+                        out << rid << ", " << sid << ", " << t << "\n";
+                }
+                out << "#Total: " << result.totalFlow << "\n";
+            } else {
+                out << "#SubmissionId,Domain,MissingReviews\n";
+                for (const auto& m : result.missing)
+                    out << m.submissionId << ", " << m.domain
+                        << ", " << m.missingCount << "\n";
+            }
+            out.close();
+            std::cerr << "[INFO] Output escrito em: " << data.ctrl.outputFilename << "\n";
+        }
+
+        if (data.ctrl.riskAnalysis > 0)
+            std::cerr << "[AVISO] Risk analysis em batch ainda nao implementado (T2.2/T2.3)\n";
+
+        return 0;
     }
-}
 
-int main() {
-    Parser parser;
-    ParseResult result = parser.parse("/home/user/DA/Scientific-Conference-Organization-Tool-P1/dataset1.csv");
-
-    if (!result.success) {
-        cout << "Falha ao carregar o ficheiro dataset1.csv" << endl;
-        return 1;
-    }
-
-    cout << "--- RESULTADOS DO PARSER ---" << endl;
-    cout << "Submissoes lidas: " << result.submissions.size() << endl;
-    cout << "Revisores lidos:  " << result.reviewers.size()   << endl;
-
-    cout << "\n--- PARAMETROS ---" << endl;
-    cout << "MinReviewsPerSubmission:    " << result.params.minReviewsPerSubmission    << endl;
-    cout << "MaxReviewsPerReviewer:      " << result.params.maxReviewsPerReviewer      << endl;
-    cout << "PrimaryReviewerExpertise:   " << result.params.primaryReviewerExpertise   << endl;
-    cout << "SecondaryReviewerExpertise: " << result.params.secondaryReviewerExpertise << endl;
-    cout << "PrimarySubmissionDomain:    " << result.params.primarySubmissionDomain    << endl;
-    cout << "SecondarySubmissionDomain:  " << result.params.secondarySubmissionDomain  << endl;
-
-    cout << "\n--- CONTROLO ---" << endl;
-    cout << "GenerateAssignments: " << assignmentModeToString(result.ctrl.generateAssignments) << endl;
-    cout << "RiskAnalysis:        " << result.ctrl.riskAnalysis   << endl;
-    cout << "OutputFileName:      " << result.ctrl.outputFilename << endl;
-
-    cout << "\n--- SUBMISSOES ---" << endl;
-    for (const auto& s : result.submissions) {
-        cout << "  [" << s.id << "] " << s.title
-             << " | Autores: " << s.authors
-             << " | Primary: " << s.primaryTopic;
-        if (s.secondaryTopic != -1)
-            cout << " | Secondary: " << s.secondaryTopic;
-        cout << endl;
-    }
-
-    cout << "\n--- REVISORES ---" << endl;
-    for (const auto& r : result.reviewers) {
-        cout << "  [" << r.id << "] " << r.name
-             << " | Primary: " << r.primaryExpertise;
-        if (r.secondaryExpertise != -1)
-            cout << " | Secondary: " << r.secondaryExpertise;
-        cout << endl;
-    }
-
+    // ── Modo interativo ──────────────────────────────────────────
+    Menu menu;
+    menu.run();
     return 0;
 }

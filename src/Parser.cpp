@@ -4,6 +4,13 @@
 
 using namespace std;
 
+// ─────────────────────────────────────────────
+//  Entrada pública
+// ─────────────────────────────────────────────
+
+/**
+ * @complexity O(N) onde N é o número de linhas do ficheiro
+ */
 ParseResult Parser::parse(const string& filename) const {
     ParseResult res;
 
@@ -18,47 +25,45 @@ ParseResult Parser::parse(const string& filename) const {
     string currentSection = "NONE";
 
     while (getline(file, line)) {
-        // retirar espaços do inicio e fim da linha
         string trimmedRaw = trim(line);
+
+        // Mudar de secção
         if (trimmedRaw == "#Submissions") { currentSection = "SUBMISSIONS"; continue; }
         if (trimmedRaw == "#Reviewers")   { currentSection = "REVIEWERS";   continue; }
         if (trimmedRaw == "#Parameters")  { currentSection = "PARAMETERS";  continue; }
         if (trimmedRaw == "#Control")     { currentSection = "CONTROL";     continue; }
 
+        // Qualquer outra linha começada por # é cabeçalho/comentário
         if (!trimmedRaw.empty() && trimmedRaw[0] == '#') continue;
 
-        // tirar comments do excel (# fora de aspas)
+        // Remover comentários inline (# fora de aspas)
         bool inQ = false;
         size_t hashPos = string::npos;
         for (size_t i = 0; i < line.size(); ++i) {
             if (line[i] == '"') inQ = !inQ;
             else if (line[i] == '#' && !inQ) { hashPos = i; break; }
         }
-
-        //linha vai de 0 até ao final dos campos (sem incluir comentários)
-        if (hashPos != string::npos)
-            line = line.substr(0, hashPos);
+        if (hashPos != string::npos) line = line.substr(0, hashPos);
 
         line = trim(line);
         if (line.empty()) continue;
 
-        // mete cada valor(field) dessa linha do excel num vetor
         vector<string> fields = splitCSV(line);
 
-        // chama para a secção atual uma função que atribui os fields a uma struct
         if      (currentSection == "SUBMISSIONS") parseSubmissionLine(fields, res);
         else if (currentSection == "REVIEWERS")   parseReviewerLine(fields, res);
         else if (currentSection == "PARAMETERS")  parseParameterLine(fields, res);
         else if (currentSection == "CONTROL")     parseControlLine(fields, res);
-        else {
-            cerr << "Aviso: Dados ignorados pois nao estao dentro de nenhuma seccao: " << line << endl;
-        }
+        else cerr << "Aviso: Dados fora de secção ignorados: " << line << endl;
     }
 
     file.close();
     return res;
 }
 
+// ─────────────────────────────────────────────
+//  Parsers por secção
+// ─────────────────────────────────────────────
 
 void Parser::parseSubmissionLine(const vector<string>& fields, ParseResult& result) const {
     if (fields.size() < 5) {
@@ -72,19 +77,16 @@ void Parser::parseSubmissionLine(const vector<string>& fields, ParseResult& resu
     s.authors        = fields[2];
     s.email          = fields[3];
     s.primaryTopic   = toInt(fields[4]);
-    //se houver uma sexta coluna (tópico secundário) e ela não estiver vazia guardamos o field
     s.secondaryTopic = (fields.size() >= 6 && !fields[5].empty()) ? toInt(fields[5]) : -1;
 
-    // ver ID duplicado
-    for (const auto& existing : result.submissions) {
-        if (existing.id == s.id) {
-            cerr << "Erro: ID de submissao duplicado (" << s.id << "). Linha ignorada." << endl;
-            result.success = false;
-            return;
-        }
+    // Verificar ID duplicado em O(1) com o hashmap
+    if (result.submissions.count(s.id)) {
+        cerr << "Erro: ID de submissao duplicado (" << s.id << "). Linha ignorada." << endl;
+        result.success = false;
+        return;
     }
 
-    result.submissions.push_back(s);
+    result.submissions[s.id] = s;  // inserção direta no hashmap
 }
 
 void Parser::parseReviewerLine(const vector<string>& fields, ParseResult& result) const {
@@ -98,19 +100,16 @@ void Parser::parseReviewerLine(const vector<string>& fields, ParseResult& result
     r.name               = fields[1];
     r.email              = fields[2];
     r.primaryExpertise   = toInt(fields[3]);
-    //se houver uma quinta coluna (expertise secundária) e ela não estiver vazia guardamos o field
     r.secondaryExpertise = (fields.size() >= 5 && !fields[4].empty()) ? toInt(fields[4]) : -1;
 
-    // ver ID duplicado
-    for (const auto& existing : result.reviewers) {
-        if (existing.id == r.id) {
-            cerr << "Erro: ID de revisor duplicado (" << r.id << "). Linha ignorada." << endl;
-            result.success = false;
-            return;
-        }
+    // Verificar ID duplicado em O(1)
+    if (result.reviewers.count(r.id)) {
+        cerr << "Erro: ID de revisor duplicado (" << r.id << "). Linha ignorada." << endl;
+        result.success = false;
+        return;
     }
 
-    result.reviewers.push_back(r);
+    result.reviewers[r.id] = r;
 }
 
 void Parser::parseParameterLine(const vector<string>& fields, ParseResult& result) const {
@@ -134,7 +133,7 @@ void Parser::parseParameterLine(const vector<string>& fields, ParseResult& resul
 
 void Parser::parseControlLine(const vector<string>& fields, ParseResult& result) const {
     if (fields.size() < 2) {
-        cerr << "Erro: Comando de controlo incompleto. Linha ignorada." << endl;
+        cerr << "Erro: Controlo incompleto. Linha ignorada." << endl;
         return;
     }
 
@@ -145,7 +144,7 @@ void Parser::parseControlLine(const vector<string>& fields, ParseResult& result)
     if (key == "GenerateAssignments") {
         int v = toInt(value);
         if (v < 0 || v > 3) {
-            cerr << "Erro: Valor invalido para GenerateAssignments (" << v << "). Deve ser 0, 1, 2 ou 3." << endl;
+            cerr << "Erro: Valor invalido para GenerateAssignments (" << v << ")." << endl;
             result.success = false;
         } else {
             c.generateAssignments = static_cast<AssignmentMode>(v);
@@ -154,23 +153,25 @@ void Parser::parseControlLine(const vector<string>& fields, ParseResult& result)
     else if (key == "RiskAnalysis") {
         int v = toInt(value);
         if (v < 0) {
-            cerr << "Erro: Valor invalido para RiskAnalysis (" << v << "). Deve ser >= 0." << endl;
+            cerr << "Erro: RiskAnalysis deve ser >= 0." << endl;
             result.success = false;
         } else {
             c.riskAnalysis = v;
         }
     }
     else if (key == "OutputFileName") c.outputFilename = value;
-    else cerr << "Aviso: Comando de controlo desconhecido ignorado -> " << key << endl;
+    else cerr << "Aviso: Controlo desconhecido ignorado -> " << key << endl;
 }
 
+// ─────────────────────────────────────────────
+//  Utilitários
+// ─────────────────────────────────────────────
 
 vector<string> Parser::splitCSV(const string& line) const {
     vector<string> fields;
     string field;
     bool inQuotes = false;
 
-    //
     for (char c : line) {
         if (c == '"') {
             inQuotes = !inQuotes;
@@ -181,15 +182,11 @@ vector<string> Parser::splitCSV(const string& line) const {
             field += c;
         }
     }
-
-    string last = trim(field);
-    fields.push_back(last);
-
+    fields.push_back(trim(field));
     return fields;
 }
 
 string Parser::trim(const string& s) const {
-    // apenas whitespace — as aspas são tratadas no splitCSV
     size_t start = s.find_first_not_of(" \t\r\n");
     size_t end   = s.find_last_not_of(" \t\r\n");
     if (start == string::npos) return "";
@@ -204,7 +201,7 @@ int Parser::toInt(const string& s) const {
     try {
         return stoi(s);
     } catch (...) {
-        cerr << "Erro: Falha ao converter '" << s << "' para numero. Assumido o valor 0." << endl;
+        cerr << "Erro: Falha ao converter '" << s << "' para numero. Assumido 0." << endl;
         return 0;
     }
 }

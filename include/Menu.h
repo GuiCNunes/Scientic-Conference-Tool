@@ -1,11 +1,11 @@
-#ifndef SCIENTIFIC_CONFERENCE_ORGANIZATION_TOOL_P1_MENU_H
-#define SCIENTIFIC_CONFERENCE_ORGANIZATION_TOOL_P1_MENU_H
+#ifndef MENU_H
+#define MENU_H
 
 #include <string>
 #include "Parser.h"
 
 /**
- * @brief Handles the interactive CLI menu and batch mode execution.
+ * @brief Gere o menu interativo e a execução batch.
  */
 class Menu {
 public:
@@ -13,11 +13,11 @@ public:
     void run();
 
 private:
-    bool dataLoaded;
+    bool        dataLoaded;
     std::string loadedFile;
-    ParseResult data;   // populated by handleLoadFile
+    ParseResult data;
 
-    // --- Visual helpers ---
+    // --- Helpers visuais ---
     void printHeader();
     int  showMainMenu();
     void showError(const std::string& msg);
@@ -29,6 +29,9 @@ private:
     void handleShowData();
     void handleGenerateAssignments();
     void handleRiskAnalysis();
+
+    // --- Output ---
+    void writeOutput(const AssignmentResult& result, const std::string& filename);
 };
 
-#endif //SCIENTIFIC_CONFERENCE_ORGANIZATION_TOOL_P1_MENU_H
+#endif // MENU_H
