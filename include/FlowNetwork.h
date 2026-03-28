@@ -61,6 +61,8 @@ private:
      *   FULL:           qualquer combinação de primary/secondary de ambos
      */
     bool hasMatch(const Submission& sub, const Reviewer& rev) const;
+
+    std::vector<int> FlowNetwork::riskAnalysis(const ParseResult& data);
 };
 
 #endif // FLOWNETWORK_H
