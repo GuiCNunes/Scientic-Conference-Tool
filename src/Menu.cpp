@@ -225,8 +225,29 @@ void Menu::handleRiskAnalysis() {
 
     printHeader();
     std::cout << "  Running risk analysis (K=" << K << ")...\n";
-    // TODO: T2.2 (K=1) e T2.3 (K>1)
-    std::cout << "  (ainda nao implementado)\n";
+    // T2.3 (K>1)
+    if (K == 1) {
+        FlowNetwork network(data);
+        std::vector<int> critical = network.riskAnalysis1(data);
+
+        std::cout << "\n  #Risk Analysis: 1\n";
+        if (critical.empty()) {
+            std::cout << "  (no critical reviewer — assignment survives any single absence)\n";
+        } else {
+            for (int rid : critical)
+                std::cout << "  " << rid << "\n";
+        }
+
+        if (data.ctrl.generateAssignments != AssignmentMode::SILENT) {
+            std::ofstream out(data.ctrl.outputFilename, std::ios::app);
+            out << "#Risk Analysis: 1\n";
+            for (int rid : critical)
+                out << rid << "\n";
+        }
+    } else {
+        std::cout << "  K>1 não implementado\n";
+    }
+
     waitEnter();
 }
 
