@@ -41,6 +41,8 @@ public:
      */
     AssignmentResult extractResult(const ParseResult& originalData) const;
 
+    std::vector<int> riskAnalysis1(const ParseResult& data);
+
 private:
     Graph<NodeInfo> graph_;
     Parameters      params_;
@@ -61,8 +63,6 @@ private:
      *   FULL:           qualquer combinação de primary/secondary de ambos
      */
     bool hasMatch(const Submission& sub, const Reviewer& rev) const;
-
-    std::vector<int> FlowNetwork::riskAnalysis(const ParseResult& data);
 };
 
 #endif // FLOWNETWORK_H

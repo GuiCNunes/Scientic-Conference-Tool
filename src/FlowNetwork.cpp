@@ -178,3 +178,46 @@ AssignmentResult FlowNetwork::extractResult(const ParseResult& originalData) con
 
     return result;
 }
+
+
+std::vector<int> FlowNetwork::riskAnalysis1(const ParseResult& data) {
+    std::vector<int> criticalReviewers;
+
+    const NodeInfo source = {NodeType::SOURCE, 0};
+    const NodeInfo sink   = {NodeType::SINK,   0};
+    int totalRequired = (int)data.submissions.size()
+                        * params_.minReviewsPerSubmission;
+
+    for (const auto& [revId, rev] : data.reviewers) {
+        FlowNetwork trial(data);
+        Graph<NodeInfo>& g = trial.getGraph();
+
+        NodeInfo revNode  = {NodeType::REVIEWER, revId};
+        NodeInfo sinkNode = {NodeType::SINK, 0};
+
+        for (auto* v : g.getVertexSet()) {
+            if (v->getInfo() != revNode) continue;
+            for (auto* e : v->getAdj()) {
+                if (e->getDest()->getInfo() == sinkNode) {
+                    e->setWeight(0); 
+                }
+            }
+        }
+
+        edmondsKarp(&g, source, sink);
+
+        int flow = 0;
+        for (auto* v : g.getVertexSet()) {
+            if (v->getInfo().type != NodeType::SUBMISSION) continue;
+            for (auto* e : v->getAdj())
+                if (e->getDest()->getInfo().type == NodeType::REVIEWER)
+                    flow += (int)e->getFlow();
+        }
+
+        if (flow < totalRequired)
+            criticalReviewers.push_back(revId);
+    }
+
+    std::sort(criticalReviewers.begin(), criticalReviewers.end());
+    return criticalReviewers;
+}
