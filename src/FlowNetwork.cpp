@@ -143,7 +143,26 @@ AssignmentResult FlowNetwork::extractResult(const ParseResult& originalData) con
             if (edge->getFlow() < 1.0) continue;
 
             int revId = edge->getDest()->getInfo().id;
-            int matchedTopic = originalData.submissions.at(subId).primaryTopic;
+            int matchedTopic = -1;
+            switch(ctrl_.generateAssignments) {
+                case AssignmentMode::SILENT:
+                case AssignmentMode::PRIMARY:
+                    matchedTopic = originalData.submissions.at(subId).primaryTopic;
+                    break;
+                case AssignmentMode::MIXED:
+                    if (originalData.submissions.at(subId).primaryTopic == originalData.reviewers.at(revId).primaryExpertise) 
+                        matchedTopic = originalData.submissions.at(subId).primaryTopic;
+                    else 
+                        matchedTopic = originalData.submissions.at(subId).secondaryTopic;
+                    break;
+                case AssignmentMode::FULL:
+                    if (originalData.submissions.at(subId).primaryTopic == originalData.reviewers.at(revId).primaryExpertise || 
+                        (originalData.reviewers.at(revId).secondaryExpertise != -1 && originalData.submissions.at(subId).primaryTopic == originalData.reviewers.at(revId).secondaryExpertise)) 
+                        matchedTopic = originalData.submissions.at(subId).primaryTopic;
+                    else 
+                        matchedTopic = originalData.submissions.at(subId).secondaryTopic;
+                    break;
+            }
 
             result.assignments.push_back(Assignment{subId, revId, matchedTopic});
             reviewsReceived[subId]++;

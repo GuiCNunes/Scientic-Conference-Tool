@@ -230,7 +230,7 @@ void Menu::handleRiskAnalysis() {
         } else {
             std::cout << "  ";
             for (size_t i = 0; i < critical.size(); ++i) {
-                std::cout << critical[i] << (i + 1 == critical.size() ? "" : ",");
+                std::cout << critical[i] << (i + 1 == critical.size() ? "" : ", ");
             }
             std::cout << "\n";
         }
@@ -239,7 +239,7 @@ void Menu::handleRiskAnalysis() {
             std::ofstream out(data.ctrl.outputFilename, std::ios::app);
             out << "#Risk Analysis: 1\n";
             for (size_t i = 0; i < critical.size(); ++i) {
-                out << critical[i] << (i + 1 == critical.size() ? "" : ",");
+                out << critical[i] << (i + 1 == critical.size() ? "" : ", ");
             }
             out << "\n";
         }
