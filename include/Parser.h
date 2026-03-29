@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include "DataTypes.h"
 
 // ─────────────────────────────────────────────
@@ -14,8 +14,8 @@
 // ─────────────────────────────────────────────
 
 struct ParseResult {
-    std::unordered_map<int, Submission> submissions;  // id → Submission
-    std::unordered_map<int, Reviewer>   reviewers;    // id → Reviewer
+    std::map<int, Submission> submissions;  // id → Submission
+    std::map<int, Reviewer>   reviewers;    // id → Reviewer
     Parameters                          params;
     Control                             ctrl;
     bool                                success = true;
@@ -37,14 +37,21 @@ public:
 
 private:
     // --- Parsers por secção ---
+    /** @brief Processa um input da área #Submissions e adiciona ao map */
     void parseSubmissionLine(const std::vector<std::string>& fields, ParseResult& result) const;
+    /** @brief Processa um input correspondente a um Reviewer e insere-o */
     void parseReviewerLine  (const std::vector<std::string>& fields, ParseResult& result) const;
+    /** @brief Transfere chaves/valores da secção Params para as structs adequadas */
     void parseParameterLine (const std::vector<std::string>& fields, ParseResult& result) const;
+    /** @brief Regula a Enum class associada ao Control a partir do input de ficheiro */
     void parseControlLine   (const std::vector<std::string>& fields, ParseResult& result) const;
 
     // --- Utilitários ---
+    /** @brief Desdobra uma de múltiplas linhas baseada num delineador por vírgula CSV ignoring quotes internas */
     std::vector<std::string> splitCSV(const std::string& line) const;
+    /** @brief Corta white-spaces, tabs, e newlines nas extremidades da string fornecida */
     std::string trim(const std::string& s) const;
+    /** @brief Safely converte std::string em inteiros com try/catch */
     int toInt(const std::string& s) const;
 };
 

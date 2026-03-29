@@ -23,24 +23,35 @@
 class FlowNetwork {
 public:
     /**
-     * @brief Constrói a rede de fluxo a partir dos dados do parser.
+     * @brief Constrói a rede de fluxo bidirecional a partir dos dados limpos do Parser.
+     * @param data As submissôes e revisores com respectivos constraints de controlo.
      */
     explicit FlowNetwork(const ParseResult& data);
 
     /**
-     * @brief Referência ao grafo para passar ao edmondsKarp().
+     * @brief Referência ao grafo interno para injetar e analisar no edmondsKarp().
+     * @return Graph<NodeInfo>&
      */
     Graph<NodeInfo>& getGraph();
 
     /**
-     * @brief Extrai as atribuições das arestas com flow=1.
+     * @brief Extrai as atribuições das arestas com capacity saturated (flow=1).
      *
-     * Deve ser chamado APÓS edmondsKarp().
-     * @param originalData Dados originais para calcular reviews em falta
+     * Deve ser invocado ESTRITAMENTE APÓS a execução de edmondsKarp().
+     * Percorre iterativamente os caminhos sub→rev para apurar matches.
+     * 
+     * @param originalData O dataset usado para gerar relatórios de furos/missing reviews.
+     * @return O Aglomerado AssignmentResult detalhando as estatísticas do fluxo
      * @complexity O(S × R) no pior caso
      */
     AssignmentResult extractResult(const ParseResult& originalData) const;
 
+    /**
+     * @brief Método analítico para testar Vulnerabilidades da Conferência se K Revisores faltarem (Implementado K=1).
+     * 
+     * @param data O ParseResult que baliza o baseline de fluxo disponível original.
+     * @return vector the IDs de revisores identificados como Single Points of Failure.
+     */
     std::vector<int> riskAnalysis1(const ParseResult& data);
 
 private:

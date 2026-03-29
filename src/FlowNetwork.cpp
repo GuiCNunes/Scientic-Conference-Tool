@@ -1,7 +1,9 @@
 #include "../include/FlowNetwork.h"
 #include "../include/DataTypes.h"
+#include "../include/MaxFlow.h"
 #include <algorithm>
 #include <unordered_map>
+#include <map>
 
 // ─────────────────────────────────────────────
 //  Constructor
@@ -124,100 +126,98 @@ bool FlowNetwork::hasMatch(const Submission& sub, const Reviewer& rev) const {
  */
 AssignmentResult FlowNetwork::extractResult(const ParseResult& originalData) const {
     AssignmentResult result;
-    result.totalRequired = (int)originalData.submissions.size()
-                           * params_.minReviewsPerSubmission;
+    result.totalRequired = (int)originalData.submissions.size() * params_.minReviewsPerSubmission;
 
-    // Contar reviews recebidas por cada submission
-    std::unordered_map<int, int> reviewsReceived;
+    // Usar std::map aqui garante que ao iterar no fim, os IDs aparecem por ordem
+    std::map<int, int> reviewsReceived;
     for (const auto& [id, sub] : originalData.submissions)
         reviewsReceived[sub.id] = 0;
 
-    // Percorrer todos os vértices de submission
+    // O VertexSet por ordem de inserção (Submissões primeiro) ajuda o determinismo
     for (auto* vertex : graph_.getVertexSet()) {
         if (vertex->getInfo().type != NodeType::SUBMISSION) continue;
-
         int subId = vertex->getInfo().id;
 
         for (auto* edge : vertex->getAdj()) {
-            // Só arestas para REVIEWER com flow activo
             if (edge->getDest()->getInfo().type != NodeType::REVIEWER) continue;
             if (edge->getFlow() < 1.0) continue;
 
             int revId = edge->getDest()->getInfo().id;
-
-            // Descobrir tópico que fez o match
             int matchedTopic = originalData.submissions.at(subId).primaryTopic;
 
-            result.assignments.push_back({subId, revId, matchedTopic});
+            result.assignments.push_back(Assignment{subId, revId, matchedTopic});
             reviewsReceived[subId]++;
             result.totalFlow++;
         }
     }
 
-    // Detectar submissions incompletas
+    // Como reviewsReceived é um std::map, as falhas são detetadas já ORDENADAS
     for (const auto& [subId, received] : reviewsReceived) {
         int needed = params_.minReviewsPerSubmission;
         if (received < needed) {
-            int domain  = originalData.submissions.at(subId).primaryTopic;
-            int missing = needed - received;
-            result.missing.push_back({subId, domain, missing});
+            int domain = originalData.submissions.at(subId).primaryTopic;
+            result.missing.push_back(MissingReview{subId, domain, needed - received});
         }
     }
 
-    // Ordenar para output consistente (como o enunciado pede)
-    std::sort(result.assignments.begin(), result.assignments.end(),
-        [](const Assignment& a, const Assignment& b) {
-            return a.submissionId != b.submissionId
-                 ? a.submissionId < b.submissionId
-                 : a.reviewerId   < b.reviewerId;
-        });
-    std::sort(result.missing.begin(), result.missing.end(),
-        [](const MissingReview& a, const MissingReview& b) {
-            return a.submissionId < b.submissionId;
-        });
+    // A ordenação já não é necessária porque iteremos as arestas do grafo 
+    // com base em vértices e vizinhos inseridos em ordem devida pelo std::map
 
     return result;
 }
 
 
+/**
+ * @brief Identifica revisores críticos (K=1).
+ *
+ * Corre um fluxo inicial para obter as atribuições base.
+ * De seguida corta temporariamente a ligação de cada revisor que teve atribuições (um a um)
+ * e tenta executar um novo max-flow. Se o total de flow diminuir e o assignment falhar,
+ * então este revisor é critico.
+ * 
+ * @param data Os dados guardados do Parser (submissions, reviewers, parametros).
+ * @return std::vector<int> Lista de IDs de revisores críticos.
+ * @complexity O(R_usados * V * E^2)
+ */
 std::vector<int> FlowNetwork::riskAnalysis1(const ParseResult& data) {
     std::vector<int> criticalReviewers;
-
     const NodeInfo source = {NodeType::SOURCE, 0};
     const NodeInfo sink   = {NodeType::SINK,   0};
-    int totalRequired = (int)data.submissions.size()
-                        * params_.minReviewsPerSubmission;
 
+    // 1. Constroi a rede inteira UMA vez
+    FlowNetwork trial(data);
+    Graph<NodeInfo>& g = trial.getGraph();
+
+    // 2. Correr a baseline para descobrir quem recebeu de facto atribuições
+    edmondsKarp(&g, source, sink);
+    AssignmentResult baseline = trial.extractResult(data);
+
+    // Contar quantas submissões foram atribuidas a cada revisor na prestação baseline
+    std::map<int, int> revLoad;
+    for (const auto& [id, rev] : data.reviewers) revLoad[rev.id] = 0;
+    for (const auto& a : baseline.assignments)    revLoad[a.reviewerId]++;
+
+    // 3. Testar a falha de cada revisor iterativamente
     for (const auto& [revId, rev] : data.reviewers) {
-        FlowNetwork trial(data);
-        Graph<NodeInfo>& g = trial.getGraph();
+        
+        // Optimização gigante: se o revisor não contribuiu para a baseline, a sua ausência 
+        // matematicamente não colapsará o Assignment. Nem precisamos testar!
+        if (revLoad[revId] == 0) continue;
 
-        NodeInfo revNode  = {NodeType::REVIEWER, revId};
-        NodeInfo sinkNode = {NodeType::SINK, 0};
+        NodeInfo revNode = {NodeType::REVIEWER, revId};
 
-        for (auto* v : g.getVertexSet()) {
-            if (v->getInfo() != revNode) continue;
-            for (auto* e : v->getAdj()) {
-                if (e->getDest()->getInfo() == sinkNode) {
-                    e->setWeight(0); 
-                }
-            }
-        }
+        // Sabotagem: Corta a saída deste revisor
+        g.removeEdge(revNode, sink);
 
+        // Testar se o full flow pode ser recuperado noutra configuração
         edmondsKarp(&g, source, sink);
-
-        int flow = 0;
-        for (auto* v : g.getVertexSet()) {
-            if (v->getInfo().type != NodeType::SUBMISSION) continue;
-            for (auto* e : v->getAdj())
-                if (e->getDest()->getInfo().type == NodeType::REVIEWER)
-                    flow += (int)e->getFlow();
+        if (!trial.extractResult(data).isComplete()) {
+            criticalReviewers.push_back(revId);
         }
 
-        if (flow < totalRequired)
-            criticalReviewers.push_back(revId);
+        // Restaurar: Ligar o revisor novamente
+        g.addEdge(revNode, sink, params_.maxReviewsPerReviewer);
     }
 
-    std::sort(criticalReviewers.begin(), criticalReviewers.end());
     return criticalReviewers;
 }

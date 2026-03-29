@@ -6,6 +6,7 @@
 #include <limits>
 #include <algorithm>
 #include <unordered_map>
+#include <map>
 
 // ─────────────────────────────────────────────
 //  Constructor
@@ -123,28 +124,21 @@ void Menu::handleShowData() {
 
     printHeader();
 
-    // Ordenar por ID para display consistente
-    std::vector<const Submission*> subs;
-    for (const auto& [id, s] : data.submissions) subs.push_back(&s);
-    std::sort(subs.begin(), subs.end(), [](auto* a, auto* b){ return a->id < b->id; });
-
     std::cout << "  === Submissions (" << data.submissions.size() << ") ===\n";
-    for (const auto* s : subs) {
-        std::cout << "  [" << s->id << "] " << s->title
-                  << " | Topic: " << s->primaryTopic;
-        if (s->secondaryTopic != -1) std::cout << "/" << s->secondaryTopic;
+    // Iterar diretamente sobre o std::map (já vem ordenado pelo ID!)
+    for (const auto& [id, s] : data.submissions) {
+        std::cout << "  [" << s.id << "] " << s.title
+                  << " | Topic: " << s.primaryTopic;
+        if (s.secondaryTopic != -1) std::cout << "/" << s.secondaryTopic;
         std::cout << "\n";
     }
 
-    std::vector<const Reviewer*> revs;
-    for (const auto& [id, r] : data.reviewers) revs.push_back(&r);
-    std::sort(revs.begin(), revs.end(), [](auto* a, auto* b){ return a->id < b->id; });
-
     std::cout << "\n  === Reviewers (" << data.reviewers.size() << ") ===\n";
-    for (const auto* r : revs) {
-        std::cout << "  [" << r->id << "] " << r->name
-                  << " | Expertise: " << r->primaryExpertise;
-        if (r->secondaryExpertise != -1) std::cout << "/" << r->secondaryExpertise;
+    // Iterar diretamente sobre o std::map (já vem ordenado pelo ID!)
+    for (const auto& [id, r] : data.reviewers) {
+        std::cout << "  [" << r.id << "] " << r.name
+                  << " | Expertise: " << r.primaryExpertise;
+        if (r.secondaryExpertise != -1) std::cout << "/" << r.secondaryExpertise;
         std::cout << "\n";
     }
 
@@ -234,15 +228,20 @@ void Menu::handleRiskAnalysis() {
         if (critical.empty()) {
             std::cout << "  (no critical reviewer — assignment survives any single absence)\n";
         } else {
-            for (int rid : critical)
-                std::cout << "  " << rid << "\n";
+            std::cout << "  ";
+            for (size_t i = 0; i < critical.size(); ++i) {
+                std::cout << critical[i] << (i + 1 == critical.size() ? "" : ",");
+            }
+            std::cout << "\n";
         }
 
         if (data.ctrl.generateAssignments != AssignmentMode::SILENT) {
             std::ofstream out(data.ctrl.outputFilename, std::ios::app);
             out << "#Risk Analysis: 1\n";
-            for (int rid : critical)
-                out << rid << "\n";
+            for (size_t i = 0; i < critical.size(); ++i) {
+                out << critical[i] << (i + 1 == critical.size() ? "" : ",");
+            }
+            out << "\n";
         }
     } else {
         std::cout << "  K>1 não implementado\n";
@@ -262,34 +261,37 @@ void Menu::writeOutput(const AssignmentResult& result, const std::string& filena
         return;
     }
 
-    if (result.isComplete()) {
-        // Secção 1: por submission
-        out << "#SubmissionId,ReviewerId,Match\n";
-        for (const auto& a : result.assignments)
-            out << a.submissionId << ", " << a.reviewerId << ", " << a.matchedTopic << "\n";
+    // Secção 1: por submission (Já vem ordenado do extractResult)
+    out << "#SubmissionId,ReviewerId,Match\n";
+    for (const auto& a : result.assignments) {
+        out << a.submissionId << ", " << a.reviewerId << ", " << a.matchedTopic << "\n";
+    }
 
-        // Secção 2: por reviewer (inverso)
-        std::unordered_map<int, std::vector<std::pair<int,int>>> byReviewer;
-        for (const auto& a : result.assignments)
-            byReviewer[a.reviewerId].push_back({a.submissionId, a.matchedTopic});
+    // Secção 2: por reviewer (inverso)
+    // Mudámos para std::map -> As chaves (ReviewerId) ficam logo ordenadas!
+    std::map<int, std::vector<std::pair<int,int>>> byReviewer;
+    for (const auto& a : result.assignments) {
+        // Como o 'result.assignments' vem ordenado por SubmissionId,
+        // os push_back vão entrar naturalmente ordenados.
+        byReviewer[a.reviewerId].push_back({a.submissionId, a.matchedTopic});
+    }
 
-        out << "#ReviewerId,SubmissionId,Match\n";
-        std::vector<int> revIds;
-        for (const auto& [rid, _] : byReviewer) revIds.push_back(rid);
-        std::sort(revIds.begin(), revIds.end());
-
-        for (int rid : revIds) {
-            auto& entries = byReviewer[rid];
-            std::sort(entries.begin(), entries.end());
-            for (const auto& [sid, topic] : entries)
-                out << rid << ", " << sid << ", " << topic << "\n";
+    out << "#ReviewerId,SubmissionId,Match\n";
+    for (const auto& [rid, entries] : byReviewer) {
+        for (const auto& entry : entries) {
+            out << rid << ", " << entry.first << ", " << entry.second << "\n";
         }
+    }
 
-        out << "#Total: " << result.totalFlow << "\n";
-    } else {
-        // Assignment incompleto
+    // Secção 3: Total
+    out << "#Total: " << result.totalFlow << "\n";
+
+    // Secção 4: Falhas (Imprime apenas se houver revisões em falta)
+    if (!result.missing.empty()) {
         out << "#SubmissionId,Domain,MissingReviews\n";
-        for (const auto& m : result.missing)
+        // Já vem ordenado do extractResult
+        for (const auto& m : result.missing) {
             out << m.submissionId << ", " << m.domain << ", " << m.missingCount << "\n";
+        }
     }
 }

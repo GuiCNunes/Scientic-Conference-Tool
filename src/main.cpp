@@ -67,17 +67,12 @@ int main(int argc, char* argv[]) {
                         << ", " << a.matchedTopic << "\n";
 
                 // Vista por reviewer (inverso)
-                std::unordered_map<int, std::vector<std::pair<int,int>>> byRev;
+                std::map<int, std::vector<std::pair<int,int>>> byRev;
                 for (const auto& a : result.assignments)
                     byRev[a.reviewerId].emplace_back(a.submissionId, a.matchedTopic);
 
                 out << "#ReviewerId,SubmissionId,Match\n";
-                std::vector<int> rids;
-                for (const auto& [rid, _] : byRev) rids.push_back(rid);
-                std::sort(rids.begin(), rids.end());
-                for (int rid : rids) {
-                    auto& entries = byRev[rid];
-                    std::sort(entries.begin(), entries.end());
+                for (const auto& [rid, entries] : byRev) {
                     for (const auto& [sid, t] : entries)
                         out << rid << ", " << sid << ", " << t << "\n";
                 }
